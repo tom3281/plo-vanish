@@ -382,10 +382,11 @@ export class GameRoom {
         }
         break;
       case "standup_start":
-        // Host launches the chair game from the lobby or between hands.
+        // Host launches the chair game from the lobby, between hands, or
+        // straight from a finished stand-up's result screen (consecutive run).
         if (clientId === this.hostId
             && (this.phase === PHASES.LOBBY || this.phase === PHASES.SHOWDOWN)
-            && !(this.su && this.su.active)) {
+            && !(this.su && this.su.active && !this.su.done)) {
           this.startStandup(Number(msg.amount) || 0);
         }
         break;

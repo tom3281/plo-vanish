@@ -907,9 +907,10 @@ function renderShowdown(){
         : `<div class="su-result-banner"><div class="lr-name">引き分け</div></div>`;
     }
     $("sdSUBanner").innerHTML = html;
-    // During a stand-up: just one button — "ゲームを続ける".
     $("nextBtn").textContent = "ゲームを続ける";
-    $("leaveBtn2").style.display = "none";
+    // Mid-rounds: just the single continue button. At the result screen
+    // (su.done) bring the full footer back so another stand-up can be started.
+    $("leaveBtn2").style.display = su.done ? "" : "none";
   } else {
     $("sdSUBanner").innerHTML = "";
     $("nextBtn").textContent = "NEXT HAND";
@@ -940,8 +941,10 @@ function renderShowdown(){
     winLine = parts.join("　/　") || "—";
   }
   $("winLine").innerHTML = winLine;
-  // Hide the host-config panel entirely while a stand-up is in progress.
-  if (su){
+  // Hide host-config only DURING the stand-up rounds. On the result screen
+  // (su.done) and in a normal showdown, show it — so the host can adjust
+  // settings or start another stand-up back-to-back.
+  if (su && !su.done){
     const hc = $("hostConfigShowdown");
     hc.innerHTML = ""; hc.dataset.sig = "";   // reset so it rebuilds afterwards
   } else {
