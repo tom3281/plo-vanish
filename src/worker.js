@@ -1013,6 +1013,26 @@ export class GameRoom {
       // Don't let the whole pool sit at once (that would leave no loser).
       if (newlySat.length >= su.standing.length) newlySat = newlySat.slice(0, su.standing.length - 1);
     }
+    // Chop tiebreak: if every standing player won chips (they'd ALL sit and
+    // leave no loser — e.g. the last two split the two boards), the player who
+    // "took the LOWER board" loses. Lower = the bottom-most surviving board
+    // (highest index); whoever made the strongest Omaha hand on it is the loser
+    // and stays standing. Everyone else sits. Exact tie there → genuine draw.
+    if (newlySat.length > 1 && newlySat.length === su.standing.length) {
+      const survivors = this.survivingBoards();
+      const lowerBoard = this.boards[Math.max(...survivors)];
+      if (lowerBoard && lowerBoard.length === 5) {
+        let best = null;
+        let losers = [];
+        for (const id of su.standing) {
+          const h = omahaBest(this.players.get(id).hole, lowerBoard);
+          if (!h) continue;
+          if (!best || compareHands(h, best) > 0) { best = h; losers = [id]; }
+          else if (compareHands(h, best) === 0) losers.push(id);
+        }
+        if (losers.length === 1) newlySat = su.standing.filter(id => id !== losers[0]);
+      }
+    }
     su.lastSat = newlySat.slice();
     for (const id of newlySat) su.sat.push(id);
     const newlySatSet = new Set(newlySat);
