@@ -699,16 +699,16 @@ function renderHostConfig(containerId){
     });
   });
   // Stand-up: each preset button starts the chair game with that amount.
+  // Feedback is a toast + the screen switching to the table; we deliberately
+  // do NOT leave the button in a disabled "開始中" state (it could otherwise
+  // get stuck once the chair game ends). Double-taps are harmless — the server
+  // ignores a start while a stand-up is already active.
   el.querySelectorAll(".su-start").forEach(b => {
     b.addEventListener("click", () => {
       const amt = parseInt(b.dataset.su, 10);
       if ((serverState.players||[]).filter(p=>!p.eliminated && p.stack>0).length < 2){ showToast("2人以上必要です"); return; }
-      // Immediate feedback so the host knows the press registered.
-      el.querySelectorAll(".su-start").forEach(x => { x.disabled = true; x.style.opacity = "0.5"; });
-      b.style.opacity = "1"; b.textContent = "開始中…";
-      showToast(`スタンドアップ開始（各 ${fmt(amt)}）`);
       const okSent = send({ type:"standup_start", amount: amt });
-      if (!okSent){ showToast("接続待ち…もう一度押してください"); el.querySelectorAll(".su-start").forEach(x => { x.disabled = false; x.style.opacity = "1"; }); }
+      showToast(okSent ? `スタンドアップ開始（各 ${fmt(amt)}）` : "接続待ち…もう一度押してください");
     });
   });
 }
