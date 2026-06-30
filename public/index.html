@@ -340,6 +340,8 @@
     border-radius: 8px; cursor: pointer;
   }
   .hc-options button.sel { background: linear-gradient(180deg,#a96bff,#7c3aed); color: #fff; border-color: transparent; }
+  .su-amounts button { border-color: rgba(255,138,58,0.5); color: #ffcaa0; background: rgba(255,138,58,0.12); font-weight: 800; }
+  .su-amounts button:active { background: rgba(255,138,58,0.32); }
   .host-config .hc-note { font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.4); margin-top: 4px; }
   .config-readout { text-align: center; font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
   .config-readout b { color: #c9a6ff; }
@@ -655,6 +657,12 @@ function renderHostConfig(containerId){
   if (!el) return;
   const st = serverState, cfg = st.config || {};
   const isHost = st.you === st.hostId;
+  // Only re-render when something here actually changed — otherwise an
+  // unrelated broadcast (a player joining, etc.) would rebuild the buttons and
+  // could swallow a tap that's mid-press (the start-stand-up bug).
+  const sig = [isHost, cfg.sb, cfg.bb, cfg.blindLevel, cfg.maxRebuys, (st.handNo||0) > 0].join("|");
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
   if (!isHost){
     el.innerHTML = `<div class="config-readout">ブラインド <b>${cfg.sb}/${cfg.bb}</b> ・ リバイ <b>${cfg.maxRebuys}回</b></div>`;
     return;
@@ -674,11 +682,12 @@ function renderHostConfig(containerId){
     <div class="hc-row"><div class="hc-label">リバイ上限${rebuyLocked?"（確定）":"（開始前のみ設定可）"}</div><div class="hc-options">${rebuyBtns}</div></div>
     <div class="hc-note" style="margin-bottom:10px">ブラインドは次のハンドから反映</div>
     <div class="hc-row">
-      <div class="hc-label">スタンドアップ（椅子取り）— 敗者が着席者に各額を支払い</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input class="su-amt-input" type="number" min="100" step="100" value="1000"
-          style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.18);border-radius:8px;padding:9px 10px;color:#fff;font-size:15px;outline:none;">
-        <button class="su-start" style="flex-shrink:0;padding:9px 14px;font-size:13px;font-weight:800;border:none;border-radius:8px;background:linear-gradient(180deg,#ff8a3a,#e0561e);color:#fff;cursor:pointer;letter-spacing:1px;">開始</button>
+      <div class="hc-label">スタンドアップ（椅子取り）— 敗者が着席者に各額を支払い・タップで開始</div>
+      <div class="hc-options su-amounts">
+        <button class="su-start" data-su="1000">1000</button>
+        <button class="su-start" data-su="2000">2000</button>
+        <button class="su-start" data-su="5000">5000</button>
+        <button class="su-start" data-su="10000">10000</button>
       </div>
     </div>
   </div>`;
@@ -689,20 +698,19 @@ function renderHostConfig(containerId){
       else send({ type:"config", maxRebuys: v });
     });
   });
-  const startSU = el.querySelector(".su-start"), amtInput = el.querySelector(".su-amt-input");
-  if (startSU){
-    startSU.addEventListener("click", () => {
-      const amt = Math.max(100, Math.round((parseInt(amtInput.value,10)||0)/100)*100);
+  // Stand-up: each preset button starts the chair game with that amount.
+  el.querySelectorAll(".su-start").forEach(b => {
+    b.addEventListener("click", () => {
+      const amt = parseInt(b.dataset.su, 10);
       if ((serverState.players||[]).filter(p=>!p.eliminated && p.stack>0).length < 2){ showToast("2人以上必要です"); return; }
-      // Immediate visual feedback so the host knows the press registered.
-      startSU.disabled = true;
-      startSU.textContent = "開始中…";
-      startSU.style.opacity = "0.7";
-      if (amtInput) amtInput.disabled = true;
+      // Immediate feedback so the host knows the press registered.
+      el.querySelectorAll(".su-start").forEach(x => { x.disabled = true; x.style.opacity = "0.5"; });
+      b.style.opacity = "1"; b.textContent = "開始中…";
       showToast(`スタンドアップ開始（各 ${fmt(amt)}）`);
-      send({ type:"standup_start", amount: amt });
+      const okSent = send({ type:"standup_start", amount: amt });
+      if (!okSent){ showToast("接続待ち…もう一度押してください"); el.querySelectorAll(".su-start").forEach(x => { x.disabled = false; x.style.opacity = "1"; }); }
     });
-  }
+  });
 }
 
 // ===== Board rendering =====
@@ -899,10 +907,13 @@ function renderShowdown(){
         : `<div class="su-result-banner"><div class="lr-name">引き分け</div></div>`;
     }
     $("sdSUBanner").innerHTML = html;
-    $("nextBtn").textContent = su.done ? "ゲームを続ける" : "次のラウンド";
+    // During a stand-up: just one button — "ゲームを続ける".
+    $("nextBtn").textContent = "ゲームを続ける";
+    $("leaveBtn2").style.display = "none";
   } else {
     $("sdSUBanner").innerHTML = "";
     $("nextBtn").textContent = "NEXT HAND";
+    $("leaveBtn2").style.display = "";
   }
 
   // Winning highlight sets per board (winner's best cards), for board card glow.
