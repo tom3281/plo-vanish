@@ -940,7 +940,13 @@ function renderShowdown(){
     winLine = parts.join("　/　") || "—";
   }
   $("winLine").innerHTML = winLine;
-  renderHostConfig("hostConfigShowdown");
+  // Hide the host-config panel entirely while a stand-up is in progress.
+  if (su){
+    const hc = $("hostConfigShowdown");
+    hc.innerHTML = ""; hc.dataset.sig = "";   // reset so it rebuilds afterwards
+  } else {
+    renderHostConfig("hostConfigShowdown");
+  }
 
   const busted = new Set(r.busted || []);
   const eliminated = new Set(r.eliminated || []);
