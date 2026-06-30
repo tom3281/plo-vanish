@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#160a2e">
+<title>VANISH — PLO Triple Board</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background: radial-gradient(ellipse at 50% 25%, #3a1d6e 0%, #241046 45%, #160a2e 90%);
+    color: #fff;
+    overflow-x: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(0,0,0,0.35) 80%);
+  }
+  .app {
+    min-height: 100dvh; display: flex; flex-direction: column;
+    padding: 14px; max-width: 760px; margin: 0 auto; width: 100%;
+    position: relative; z-index: 1;
+  }
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* Title */
+  .title { text-align: center; padding: 26px 16px 18px; }
+  .title h1 {
+    font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+    font-size: clamp(40px, 14vw, 72px);
+    margin: 0; letter-spacing: 0.02em; font-weight: 900;
+    background: linear-gradient(180deg, #c9a6ff 0%, #7c3aed 70%, #4c1d95 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1; text-shadow: 0 0 50px rgba(124,58,237,0.4);
+  }
+  .title .subtitle { font-size: 11px; letter-spacing: 5px; color: rgba(255,255,255,0.55); margin-top: 8px; }
+
+  .panel {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(201,166,255,0.22);
+    border-radius: 16px;
+    padding: 16px; margin-bottom: 12px;
+    backdrop-filter: blur(8px);
+  }
+  .panel h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 3px; color: #c9a6ff; font-weight: 600; }
+  .panel input {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fff; font-size: 16px; outline: none; transition: all .2s;
+  }
+  .panel input:focus { border-color: #c9a6ff; background: rgba(255,255,255,0.12); }
+
+  .btn {
+    width: 100%; border: none; border-radius: 14px; padding: 16px;
+    font-size: 16px; font-weight: 700; letter-spacing: 4px; cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(180deg, #a96bff 0%, #7c3aed 100%);
+    color: #fff; box-shadow: 0 6px 18px rgba(124,58,237,0.45);
+  }
+  .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #fff; letter-spacing: 2px; }
+  .btn + .btn { margin-top: 10px; }
+  .btn-link-text {
+    display: block; width: 100%; margin-top: 10px; background: transparent; border: none;
+    color: rgba(201,166,255,0.75); font-family: inherit; font-size: 13px; letter-spacing: 4px;
+    cursor: pointer; padding: 8px; text-decoration: underline; text-underline-offset: 4px;
+  }
+
+  /* Lobby */
+  .room-info { text-align: center; margin: 10px 0 16px; font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.55); }
+  .room-code {
+    display: inline-block; margin-top: 4px; font-family: 'Inter', system-ui, monospace;
+    font-size: 30px; font-weight: 900; letter-spacing: 6px; color: #c9a6ff;
+  }
+  .player-list { display: flex; flex-direction: column; gap: 8px; }
+  .player-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 12px 14px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  }
+  .player-row.you { background: rgba(201,166,255,0.12); border-color: rgba(201,166,255,0.4); }
+  .player-row .name { font-weight: 700; }
+  .player-row .badge {
+    font-size: 10px; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.12); letter-spacing: 1px;
+  }
+  .player-row.host .badge { background: rgba(201,166,255,0.3); color: #c9a6ff; }
+  .status-line { text-align: center; margin: 6px 0 14px; font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.55); }
+  .footer-actions { margin-top: auto; padding-top: 12px; }
+
+  /* ===== Table ===== */
+  .table-top {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.6); margin-bottom: 8px;
+  }
+  .street-pill {
+    font-weight: 800; letter-spacing: 3px; color: #c9a6ff; font-size: 12px;
+    padding: 4px 10px; border: 1px solid rgba(201,166,255,0.4); border-radius: 999px;
+  }
+  .pot-display { text-align: center; margin-bottom: 10px; }
+  .pot-display .pot-label { font-size: 9px; letter-spacing: 4px; color: rgba(255,255,255,0.5); }
+  .pot-display .pot-amt {
+    font-family: 'Inter', system-ui, sans-serif; font-size: 30px; font-weight: 900;
+    background: linear-gradient(180deg,#ffe9a6,#e0b341); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  .boards { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .board-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; background: rgba(0,0,0,0.28); border: 1px solid rgba(201,166,255,0.18);
+    border-radius: 10px; position: relative; transition: opacity .4s, filter .4s;
+  }
+  .board-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px; color: rgba(255,255,255,0.55);
+    width: 16px; flex-shrink: 0; text-align: center;
+  }
+  .board-cards { display: flex; gap: 4px; flex: 1; justify-content: flex-start; }
+  .board-cards .community-card { width: calc((100% - 16px) / 5); max-width: 52px; aspect-ratio: 5/7; }
+  .board-row.winner-board { border-color: #e0b341; box-shadow: 0 0 14px rgba(224,179,65,0.35); }
+  .board-row.vanished {
+    opacity: 0.32; filter: grayscale(0.8) brightness(0.7);
+  }
+  .board-row.vanished::after {
+    content: "VANISHED"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: 'Inter', system-ui, sans-serif; font-size: 16px; font-weight: 900; letter-spacing: 4px;
+    color: #ff6b9d; text-shadow: 0 0 16px rgba(255,107,157,0.7); transform: rotate(-6deg);
+    background: repeating-linear-gradient(45deg, rgba(255,107,157,0.06) 0 8px, transparent 8px 16px);
+    border-radius: 10px; animation: vanishIn .5s ease;
+  }
+  @keyframes vanishIn { from { opacity: 0; transform: rotate(-6deg) scale(1.3); } to { opacity: 1; transform: rotate(-6deg) scale(1); } }
+
+  /* Seats */
+  .seats { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+  .seat {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 10px; font-size: 13px; transition: all .2s;
+  }
+  .seat.you { background: rgba(201,166,255,0.1); border-color: rgba(201,166,255,0.35); }
+  .seat.acting { border-color: #c9a6ff; box-shadow: 0 0 12px rgba(201,166,255,0.5); background: rgba(201,166,255,0.14); }
+  .seat.folded { opacity: 0.4; }
+  .seat .dealer-btn {
+    width: 18px; height: 18px; border-radius: 999px; background: #fff; color: #160a2e;
+    font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .seat .dealer-btn.hide { visibility: hidden; }
+  .seat .sname { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seat .sname .you-tag { color: #c9a6ff; }
+  .seat .stag {
+    font-size: 9px; padding: 2px 6px; border-radius: 999px; letter-spacing: 1px; font-weight: 700; flex-shrink: 0;
+  }
+  .stag.allin { background: rgba(255,80,80,0.3); color: #ffb0b0; }
+  .stag.fold  { background: rgba(150,150,150,0.25); color: rgba(255,255,255,0.6); }
+  .stag.bet   { background: rgba(224,179,65,0.22); color: #ffe09a; }
+  .seat .sstack {
+    font-family: 'Inter', system-ui, monospace; font-size: 13px; font-weight: 800; flex-shrink: 0;
+    min-width: 52px; text-align: right;
+  }
+  .seat .schips { font-size: 9px; color: rgba(255,255,255,0.45); }
+
+  /* Your hole */
+  .hole-wrap { margin-bottom: 8px; }
+  .hole-cards { display: flex; gap: 8px; justify-content: center; }
+  .hole-cards .hcard { width: 19%; max-width: 84px; aspect-ratio: 5/7; }
+
+  /* Action bar */
+  .action-bar {
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(201,166,255,0.3); border-radius: 14px;
+    padding: 12px; margin-top: auto;
+  }
+  .action-clock {
+    text-align: center; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; letter-spacing: 2px;
+    color: rgba(255,255,255,0.6); margin-bottom: 8px;
+  }
+  .action-clock b { color: #c9a6ff; font-size: 18px; }
+  .action-clock.urgent b { color: #ff6b6b; }
+  .raise-controls { margin-bottom: 10px; }
+  .raise-amt {
+    text-align: center; font-family: 'Inter', system-ui, sans-serif; font-size: 26px; font-weight: 900;
+    color: #ffe09a; margin-bottom: 6px;
+  }
+  .raise-presets { display: flex; gap: 6px; margin-bottom: 8px; }
+  .raise-presets button {
+    flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    border: 1px solid rgba(201,166,255,0.35); background: rgba(201,166,255,0.08); color: #d8c4ff;
+    border-radius: 8px; cursor: pointer;
+  }
+  .raise-presets button:active { background: rgba(201,166,255,0.25); }
+  input[type=range] { width: 100%; accent-color: #a96bff; }
+  .action-buttons { display: flex; gap: 8px; }
+  .action-buttons button {
+    flex: 1; padding: 16px 6px; font-size: 15px; font-weight: 800; letter-spacing: 1px;
+    border: none; border-radius: 12px; cursor: pointer; transition: transform .1s;
+  }
+  .action-buttons button:active { transform: scale(0.96); }
+  .act-fold  { background: linear-gradient(180deg,#6f6f7a,#404048); color: #fff; }
+  .act-check { background: linear-gradient(180deg,#3aa3ff,#1e6fd6); color: #fff; }
+  .act-call  { background: linear-gradient(180deg,#3aa3ff,#1e6fd6); color: #fff; }
+  .act-raise { background: linear-gradient(180deg,#ff8a3a,#e0561e); color: #fff; }
+  .waiting-note { text-align: center; font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.55); padding: 8px; }
+
+  /* Showdown */
+  .verdict-banner {
+    text-align: center; padding: 10px;
+    background: linear-gradient(90deg, transparent, rgba(224,179,65,0.18), transparent);
+    border-top: 1px solid rgba(224,179,65,0.3); border-bottom: 1px solid rgba(224,179,65,0.3);
+    margin: 0 -14px 10px;
+  }
+  .verdict-banner .label { font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.6); }
+  .verdict-banner .win-line { font-size: 16px; font-weight: 800; color: #ffe09a; margin-top: 3px; }
+  .drink-banner {
+    display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 14px;
+    background: linear-gradient(90deg, rgba(255,80,80,0.05), rgba(255,80,80,0.3), rgba(255,80,80,0.05));
+    border: 1px solid rgba(255,80,80,0.5); border-radius: 10px; margin-bottom: 10px;
+    box-shadow: 0 0 16px rgba(255,80,80,0.25);
+  }
+  .drink-banner .label { font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+  .drink-banner .drinker-text { font-size: 17px; font-weight: 900; color: #ff8a8a; letter-spacing: 1px; text-align: center; }
+  .drink-banner.none .drinker-text { color: rgba(255,255,255,0.55); }
+  .sd-list { display: flex; flex-direction: column; gap: 7px; }
+  .sd-row {
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 9px 11px;
+  }
+  .sd-row.winner { background: rgba(224,179,65,0.13); border-color: #e0b341; }
+  .sd-row.folded { opacity: 0.5; }
+  .sd-row.drinker { border-color: rgba(255,80,80,0.6); box-shadow: 0 0 14px rgba(255,80,80,0.3); }
+  .sd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .sd-name { font-size: 14px; font-weight: 700; }
+  .sd-name .you-tag { color: #c9a6ff; }
+  .sd-net { font-family: 'Inter', system-ui, monospace; font-size: 14px; font-weight: 800; flex-shrink: 0; }
+  .sd-net.plus { color: #7fe8a0; }
+  .sd-net.minus { color: #ff8a8a; }
+  .sd-drink {
+    font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
+    background: linear-gradient(180deg,#ff5050,#c41e1e); color: #fff; flex-shrink: 0;
+  }
+  .sd-cards { display: flex; gap: 4px; }
+  .sd-cards .pcard { width: 30px; aspect-ratio: 5/7; }
+  .sd-cards .pcard.in-best { box-shadow: 0 0 9px rgba(224,179,65,0.7); border-radius: 6px; }
+  .sd-hidden { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px; }
+
+  /* Card design (shared trump layout) */
+  .card { position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
+    transition: transform .7s cubic-bezier(.4,1.4,.55,1); will-change: transform; }
+  .card.flipped { transform: rotateY(180deg); }
+  .card.deal-in { animation: dealIn .45s cubic-bezier(.3,1.3,.5,1); }
+  @keyframes dealIn { from { transform: scale(0.7) rotateZ(-8deg); opacity: 0; } to { transform: scale(1) rotateZ(0); opacity: 1; } }
+  .card-face { position: absolute; inset: 0; border-radius: 6px; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    overflow: hidden; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.18); }
+  .card-back::before {
+    content: ""; position: absolute; inset: 5%; border-radius: 3px;
+    background:
+      linear-gradient(45deg, #7c3aed 25%, transparent 25%) 0 0 / 8px 8px,
+      linear-gradient(-45deg, #7c3aed 25%, transparent 25%) 0 0 / 8px 8px,
+      linear-gradient(45deg, transparent 75%, #7c3aed 75%) 0 0 / 8px 8px,
+      linear-gradient(-45deg, transparent 75%, #7c3aed 75%) 0 0 / 8px 8px, #fff;
+  }
+  .card-front { transform: rotateY(180deg); color: #0a0a0a; }
+  .card-front.red { color: #d61e2e; }
+  .card-front.black { color: #0a0a0a; }
+  .corner-suit, .corner-rank { position: absolute; line-height: 1; font-family: 'Inter','Helvetica Neue',system-ui,sans-serif; font-weight: 900; }
+  .corner-suit { top: 6%; left: 7%; }
+  .corner-rank { top: 6%; right: 13%; letter-spacing: -0.1em; }
+  .bottom-suit { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); line-height: 1; }
+  .community-card, .hcard, .pcard { container-type: inline-size; }
+  .card .corner-suit { font-size: 34cqw; }
+  .card .corner-rank { font-size: 36cqw; }
+  .card .bottom-suit { font-size: 78cqw; }
+
+  /* Rules overlay */
+  .rules-overlay { position: fixed; inset: 0; z-index: 200; display: none; align-items: flex-start; justify-content: center;
+    background: rgba(0,0,0,0.85); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 28px 16px; overflow-y: auto; cursor: pointer; }
+  .rules-overlay.show { display: flex; }
+  .rules-card { background: linear-gradient(180deg,#2a1656,#160a2e); border: 1px solid rgba(201,166,255,0.4);
+    border-radius: 14px; padding: 20px 18px 12px; max-width: 460px; width: 100%; box-shadow: 0 24px 50px rgba(0,0,0,0.6); cursor: default; }
+  .rules-card h2 { font-size: 15px; letter-spacing: 5px; color: #c9a6ff; text-align: center; margin: 0 0 14px; font-weight: 800; }
+  .rules-card dl { font-size: 13px; line-height: 1.65; letter-spacing: 0.03em; }
+  .rules-card dt { font-weight: 700; color: #c9a6ff; margin-top: 12px; letter-spacing: 1px; font-size: 12px; }
+  .rules-card dt:first-child { margin-top: 0; }
+  .rules-card dd { padding-left: 10px; color: rgba(255,255,255,0.88); margin-bottom: 2px; }
+  .rules-card dd b { color: #ffe09a; }
+  .rules-card .close-hint { margin-top: 12px; text-align: center; font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.5); }
+
+  /* Lobby QR */
+  .qr-card {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+  }
+  .qr-img { width: 200px; height: 200px; image-rendering: pixelated; display: block; }
+  .qr-hint { font-size: 11px; letter-spacing: 1px; color: #4c1d95; font-weight: 700; }
+  .qr-url { font-size: 10px; color: #7c3aed; font-family: 'Inter', system-ui, monospace; word-break: break-all; text-align: center; }
+
+  /* Stand-up */
+  .su-banner {
+    background: linear-gradient(180deg, rgba(255,138,58,0.16), rgba(255,138,58,0.05));
+    border: 1px solid rgba(255,138,58,0.4); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px;
+  }
+  .su-banner-top { font-size: 11px; letter-spacing: 1px; color: #ffcaa0; text-align: center; font-weight: 700; }
+  .su-banner-top b { color: #ffe09a; }
+  .su-poolbar { font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 8px; line-height: 1.5; }
+  .su-poolbar .sat-chip { display:inline-block; background: rgba(80,255,150,0.16); color:#9be8af; border-radius: 999px; padding: 2px 8px; margin: 2px; font-weight: 700; }
+  .su-poolbar .stand-chip { display:inline-block; background: rgba(255,138,58,0.18); color:#ffb37a; border-radius: 999px; padding: 2px 8px; margin: 2px; font-weight: 700; }
+  .sd-row.sat-now { background: rgba(80,255,150,0.13); border-color: rgba(80,255,150,0.5); }
+  .sd-row.loser { background: rgba(255,138,58,0.16); border-color: #ff8a3a; box-shadow: 0 0 14px rgba(255,138,58,0.4); }
+  .su-tag { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; }
+  .su-tag.sit { background: linear-gradient(180deg,#3fd07a,#1e9b52); color:#fff; }
+  .su-tag.stand { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+  .su-result-banner {
+    text-align: center; padding: 14px; margin-bottom: 10px;
+    background: linear-gradient(180deg, rgba(255,138,58,0.2), rgba(255,138,58,0.06));
+    border: 1px solid rgba(255,138,58,0.5); border-radius: 12px;
+  }
+  .su-result-banner .lr-label { font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.6); }
+  .su-result-banner .lr-name { font-size: 24px; font-weight: 900; color: #ffb37a; margin: 3px 0; }
+  .su-result-banner .lr-pay { font-size: 14px; color: #ffe09a; font-weight: 700; }
+  .su-net-list { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+  .su-net-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 2px 4px; }
+  .su-net-row .sd-net { font-family: 'Inter', system-ui, monospace; font-weight: 800; }
+
+  /* Host config */
+  .host-config {
+    background: rgba(0,0,0,0.35); border: 1px solid rgba(201,166,255,0.25); border-radius: 12px;
+    padding: 12px; margin-bottom: 12px;
+  }
+  .host-config .hc-title { font-size: 11px; letter-spacing: 3px; color: #c9a6ff; font-weight: 700; margin-bottom: 8px; }
+  .host-config .hc-row { margin-bottom: 8px; }
+  .host-config .hc-label { font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.55); margin-bottom: 5px; }
+  .hc-options { display: flex; gap: 6px; flex-wrap: wrap; }
+  .hc-options button {
+    flex: 1; min-width: 64px; padding: 9px 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    border: 1px solid rgba(201,166,255,0.3); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8);
+    border-radius: 8px; cursor: pointer;
+  }
+  .hc-options button.sel { background: linear-gradient(180deg,#a96bff,#7c3aed); color: #fff; border-color: transparent; }
+  .host-config .hc-note { font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+  .config-readout { text-align: center; font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
+  .config-readout b { color: #c9a6ff; }
+
+  .version-tag { margin-top: 12px; text-align: center; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.35); font-family: 'Inter', system-ui, monospace; }
+  .version-corner { position: fixed; bottom: 6px; right: 10px; z-index: 50; font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.3); font-family: 'Inter', system-ui, monospace; pointer-events: none; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(124,58,237,0.95); color: #fff;
+    padding: 12px 20px; border-radius: 10px; font-size: 14px; z-index: 1000; box-shadow: 0 6px 18px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ENTER -->
+  <div class="screen active" id="enterScreen">
+    <div class="title">
+      <h1>VANISH</h1>
+      <div class="subtitle">POT-LIMIT OMAHA · TRIPLE BOARD</div>
+    </div>
+    <div class="panel">
+      <h2>あなたの名前</h2>
+      <input id="nameInput" type="text" placeholder="プレイヤー名" maxlength="12" autocomplete="off">
+    </div>
+    <div class="panel">
+      <h2>ルームコード</h2>
+      <input id="roomInput" type="text" placeholder="既存ルームのコード（空欄で新規）" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+    </div>
+    <button class="btn btn-primary" id="enterBtn">JOIN</button>
+    <button class="btn-link-text" id="rulesBtn">ルールを見る</button>
+    <div class="version-tag">v1.1.0</div>
+  </div>
+
+  <!-- RULES -->
+  <div class="rules-overlay" id="rulesOverlay">
+    <div class="rules-card">
+      <h2>RULES</h2>
+      <dl>
+        <dt>これは</dt>
+        <dd>ポットリミット・オマハを <b>3つのボード</b> で同時進行。チップを賭けて勝負する本格ポーカー。</dd>
+        <dt>配り</dt>
+        <dd>手札 <b>4枚</b>（自分だけ）。役は手札から <b>必ず2枚</b> ＋ ボードから <b>3枚</b> で作る。</dd>
+        <dt>ベット</dt>
+        <dd>初期スタック <b>50,000</b>、チップ最小単位 <b>100</b>。ブラインドはホストが <b>100-200 / 200-300 / 300-500</b> から選択。レイズ上限は <b>ポットサイズ</b>（ポットリミット）。</dd>
+        <dt>リバーバニッシュ</dt>
+        <dd>リバーで <b>リバーカードの数字が一番小さいボードが消滅</b>（同数はスートの強さ ♠&gt;♥&gt;♦&gt;♣ で下が消滅）。残った <b>2ボード</b> でショーダウン。</dd>
+        <dt>勝者・ポット</dt>
+        <dd>ポットは生き残った2ボードに <b>等分</b>。各ボードで最強のオマハ役を作った人がその分を獲得（同点は山分け）。</dd>
+        <dt>リバイ・脱落</dt>
+        <dd><b>スタックが0</b> になったらリバイして復帰（回数制・ホスト設定）。リバイ回数を使い切ると <b>脱落</b>。</dd>
+        <dt>スタンドアップ（椅子取り）</dt>
+        <dd>ホストが任意のタイミングで開始。<b>通常のハンド（ベットあり）</b> を繰り返し、チップは普通に動く。各ハンドで <b>チップを獲得した人が着席（安全）</b> して抜ける。最後まで座れなかった1人が <b>敗者</b> で、着席した全員に <b>各指定額</b> を支払う。</dd>
+      </dl>
+      <div class="close-hint">タップで閉じる</div>
+    </div>
+  </div>
+
+  <!-- LOBBY -->
+  <div class="screen" id="lobbyScreen">
+    <div class="room-info">ROOM CODE<div class="room-code" id="roomCodeDisplay">------</div></div>
+    <div class="qr-card" id="qrCard">
+      <img class="qr-img" id="lobbyQR" alt="join QR" width="200" height="200">
+      <div class="qr-hint">スマホでスキャンしてこのルームに参加</div>
+      <div class="qr-url" id="qrUrl"></div>
+    </div>
+    <div class="panel">
+      <h2>プレイヤー <span id="playerCountLabel" style="opacity:.7"></span></h2>
+      <div class="player-list" id="lobbyPlayerList"></div>
+    </div>
+    <div id="hostConfigLobby"></div>
+    <div class="status-line" id="lobbyStatus"></div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="startBtn" style="display:none">START</button>
+      <button class="btn btn-ghost" id="leaveBtn">退出</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="screen" id="tableScreen">
+    <div class="table-top">
+      <span id="handNoLabel">HAND #1</span>
+      <span class="street-pill" id="streetPill">PREFLOP</span>
+      <span id="blindsLabel">10/20</span>
+    </div>
+    <div id="tableSUBanner"></div>
+    <div class="pot-display">
+      <div class="pot-label">POT</div>
+      <div class="pot-amt" id="potAmt">0</div>
+    </div>
+    <div class="boards" id="boards"></div>
+    <div class="seats" id="seats"></div>
+    <div class="hole-wrap">
+      <div class="hole-cards" id="holeCards"></div>
+    </div>
+    <div id="actionArea"></div>
+  </div>
+
+  <!-- SHOWDOWN -->
+  <div class="screen" id="showdownScreen">
+    <div id="sdSUBanner"></div>
+    <div class="verdict-banner">
+      <div class="label">SHOWDOWN</div>
+      <div class="win-line" id="winLine">-</div>
+    </div>
+    <div class="boards" id="sdBoards"></div>
+    <div class="sd-list" id="sdList"></div>
+    <div id="hostConfigShowdown"></div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="nextBtn" style="display:none">NEXT HAND</button>
+      <button class="btn btn-ghost" id="leaveBtn2">退出</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="version-corner">v1.1.0</div>
+
+<script>
+"use strict";
+const PHASES = { LOBBY: "lobby", BETTING: "betting", SHOWDOWN: "showdown", STANDUP: "standup" };
+const STORAGE_KEY = "plovanish_v1";
+let ws = null, serverState = null, myInfo = { name: "", room: "" };
+let timerInterval = null, manualClose = false, reconnectTimer = null, reconnectAttempts = 0;
+const MAX_RECONNECT = 6;
+let heartbeatTimer = null, lastServerMessageAt = 0;
+const HEARTBEAT_INTERVAL_MS = 5000, HEARTBEAT_TIMEOUT_MS = 20000;
+let raiseValue = 0; // current raise-to in the action slider
+
+// Wake lock
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!wakeLock && ws) requestWakeLock();
+  if (myInfo.room && myInfo.name && !manualClose) {
+    if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) forceReconnect("resume");
+  }
+});
+function forceReconnect(reason) {
+  if (manualClose || reconnectTimer) return;
+  if (ws) { const old = ws; ws = null; try { old.close(4001, reason || "forced"); } catch {} }
+  reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(myInfo.name, myInfo.room); }, 200);
+}
+
+function getOrCreateClientId() {
+  const KEY = "plovanish_clientId_v1";
+  let id = "";
+  try { id = localStorage.getItem(KEY) || ""; } catch {}
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) {
+    id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : Array.from({length: 32}, () => "0123456789abcdef"[Math.floor(Math.random()*16)]).join("");
+    try { localStorage.setItem(KEY, id); } catch {}
+  }
+  return id;
+}
+const CLIENT_ID = getOrCreateClientId();
+
+const FUNNY_NAMES = ["ナッツ","ブラファー","シャーク","フィッシュ","グラインダー","ドンクベット","オールイン","リバーマン","セットマイナー","ティルト","ロック","ビッグスタック","ショートスタック","コーラー","リレイザー","ポラライズ","ヒーロー","バレル"];
+function randomFunnyName() { return FUNNY_NAMES[Math.floor(Math.random()*FUNNY_NAMES.length)]; }
+function randomRoomCode() { const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; return Array.from({length:5},()=>A[Math.floor(Math.random()*A.length)]).join(""); }
+try { const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}"); document.getElementById("nameInput").value = s.name || randomFunnyName(); }
+catch { document.getElementById("nameInput").value = randomFunnyName(); }
+// Prefill the room code from a ?room= link (QR scan) if present, else random.
+(function(){
+  let room = "";
+  try { room = (new URLSearchParams(location.search).get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6); } catch {}
+  document.getElementById("roomInput").value = /^[A-Z0-9]{4,6}$/.test(room) ? room : randomRoomCode();
+})();
+
+function $(id){ return document.getElementById(id); }
+function showScreen(name){
+  const t = $(name+"Screen");
+  if (t.classList.contains("active")) return;
+  document.querySelectorAll(".screen").forEach(el=>el.classList.remove("active"));
+  t.classList.add("active");
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function showToast(msg, ms=2500){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),ms); }
+function fmt(n){ return (n||0).toLocaleString("en-US"); }
+
+function cardHTML(card, opt={}){
+  if (!card) {
+    return `<div class="card flipped"><div class="card-face card-back"></div><div class="card-face card-front"></div></div>`;
+  }
+  return `<div class="card flipped ${opt.dealIn?"deal-in":""}">
+    <div class="card-face card-back"></div>
+    <div class="card-face card-front ${card.suit.color}">
+      <div class="corner-suit">${card.suit.sym}</div>
+      <div class="corner-rank">${card.label}</div>
+      <div class="bottom-suit">${card.suit.sym}</div>
+    </div></div>`;
+}
+function cardKey(c){ return c ? `${c.v}-${c.suit.sym}` : ""; }
+
+// ===== Connection =====
+function connect(name, room){
+  myInfo.name = name; myInfo.room = room; manualClose = false;
+  if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name })); } catch {}
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws?room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}&clientId=${encodeURIComponent(CLIENT_ID)}`;
+  const sock = new WebSocket(url); ws = sock;
+  sock.addEventListener("open", () => {
+    if (ws !== sock) return;
+    reconnectAttempts = 0; lastServerMessageAt = Date.now(); startHeartbeat();
+    $("roomCodeDisplay").textContent = room;
+  });
+  sock.addEventListener("message", (e) => {
+    if (ws !== sock) return;
+    lastServerMessageAt = Date.now();
+    let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === "state") { serverState = msg.state; onStateUpdate(); }
+  });
+  sock.addEventListener("close", (e) => {
+    const isCurrent = ws === sock;
+    if (isCurrent){ cleanupTimers(); stopHeartbeat(); ws = null; }
+    if (e.code === 4002){ if (isCurrent){ manualClose=true; reconnectAttempts=0; showToast("別のタブで開かれました"); showScreen("enter"); } return; }
+    if (e.code === 4030 || e.code === 4023 || e.code === 1008){
+      if (isCurrent){ manualClose=true; reconnectAttempts=0;
+        showToast(e.code===4030?"ルームが満員です":e.code===4023?"ゲームが進行中で参加できません":"ルームに入れませんでした"); showScreen("enter"); }
+      return;
+    }
+    if (manualClose){ if (isCurrent){ reconnectAttempts=0; showScreen("enter"); } return; }
+    if (isCurrent && myInfo.room && myInfo.name && reconnectAttempts < MAX_RECONNECT){
+      reconnectAttempts++;
+      const backoff = Math.min(500*Math.pow(2, reconnectAttempts-1), 4000);
+      showToast(`再接続中... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(()=>{ reconnectTimer=null; connect(myInfo.name, myInfo.room); }, backoff);
+      return;
+    }
+    if (isCurrent){ showToast("接続が切れました"); showScreen("enter"); reconnectAttempts=0; }
+  });
+  sock.addEventListener("error", () => {});
+}
+function send(msg){ if (ws && ws.readyState===WebSocket.OPEN){ ws.send(JSON.stringify(msg)); return true; } return false; }
+function startHeartbeat(){
+  stopHeartbeat();
+  heartbeatTimer = setInterval(()=>{
+    if (!ws || ws.readyState!==WebSocket.OPEN) return;
+    try { ws.send(JSON.stringify({type:"ping"})); } catch {}
+    if (Date.now()-lastServerMessageAt > HEARTBEAT_TIMEOUT_MS) forceReconnect("heartbeat-timeout");
+  }, HEARTBEAT_INTERVAL_MS);
+}
+function stopHeartbeat(){ if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; } }
+function disconnect(){
+  manualClose=true; reconnectAttempts=0;
+  if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+  stopHeartbeat();
+  if (ws){ try { ws.close(1000,"user disconnect"); } catch {} ws=null; }
+  if (wakeLock){ try { wakeLock.release(); } catch {} wakeLock=null; }
+  cleanupTimers(); showScreen("enter");
+}
+
+// ===== State routing =====
+function onStateUpdate(){
+  if (!serverState) return;
+  switch (serverState.phase){
+    case PHASES.LOBBY: renderLobby(); break;
+    case PHASES.BETTING: renderTable(); break;
+    case PHASES.SHOWDOWN: renderShowdown(); break;
+  }
+}
+
+// Stand-up context banner (shown on the betting & showdown screens while a
+// chair game is running). Returns an HTML string.
+function standupBannerHTML(su){
+  if (!su) return "";
+  const st = serverState;
+  const nameOf = id => { const p = st.players.find(x => x.id === id); return p ? p.name : "?"; };
+  const satChips = (su.sat || []).map(id => `<span class="sat-chip">${escapeHtml(nameOf(id))} 着席</span>`).join("");
+  const standChips = (su.standing || []).map(id => `<span class="stand-chip">${escapeHtml(nameOf(id))}</span>`).join("");
+  return `<div class="su-banner">
+      <div class="su-banner-top">🪑 スタンドアップ ROUND ${su.roundNo} ・ 各 <b>${fmt(su.amount)}</b> ・ 勝者は着席（離脱）</div>
+      <div class="su-poolbar">${satChips || ""}${standChips ? `<div style="margin-top:4px">残り: ${standChips}</div>` : ""}</div>
+    </div>`;
+}
+
+// ===== Lobby =====
+function renderLobby(){
+  showScreen("lobby"); cleanupTimers();
+  const players = serverState.players || [];
+  const max = serverState.config?.maxPlayers || 8;
+  // Join QR — encodes this room's URL so others can scan to join instantly.
+  const joinUrl = `${location.origin}/?room=${encodeURIComponent(myInfo.room || "")}`;
+  const qr = $("lobbyQR");
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(joinUrl)}`;
+  if (qr.dataset.url !== joinUrl){ qr.src = qrSrc; qr.dataset.url = joinUrl; }
+  $("qrUrl").textContent = joinUrl;
+  $("playerCountLabel").textContent = `(${players.length}/${max})`;
+  $("lobbyPlayerList").innerHTML = players.map(p => `
+    <div class="player-row ${p.isYou?"you":""} ${p.id===serverState.hostId?"host":""}">
+      <span class="name">${escapeHtml(p.name)}${p.isYou?" (あなた)":""}</span>
+      <span class="badge">${p.id===serverState.hostId?"HOST":""}</span>
+    </div>`).join("");
+  renderHostConfig("hostConfigLobby");
+  const isHost = serverState.you === serverState.hostId;
+  const startBtn = $("startBtn"), status = $("lobbyStatus");
+  if (isHost){
+    startBtn.style.display = "";
+    if (players.length < 2){ startBtn.disabled = true; status.textContent = "もう1人以上の参加を待っています"; }
+    else { startBtn.disabled = false; status.textContent = "全員揃ったらSTART"; }
+  } else { startBtn.style.display = "none"; status.textContent = "ホストの開始を待っています"; }
+}
+
+// ===== Host config panel (blind level + rebuy cap) =====
+function renderHostConfig(containerId){
+  const el = $(containerId);
+  if (!el) return;
+  const st = serverState, cfg = st.config || {};
+  const isHost = st.you === st.hostId;
+  if (!isHost){
+    el.innerHTML = `<div class="config-readout">ブラインド <b>${cfg.sb}/${cfg.bb}</b> ・ リバイ <b>${cfg.maxRebuys}回</b></div>`;
+    return;
+  }
+  const levels = cfg.blindLevels || [];
+  const blindBtns = levels.map((lv,i) =>
+    `<button data-cfg="blind" data-v="${i}" class="${i===cfg.blindLevel?"sel":""}">${lv.sb}-${lv.bb}</button>`).join("");
+  // Rebuy cap is locked once the game has started (set it once at the start).
+  const rebuyLocked = (st.handNo || 0) > 0;
+  const rebuyBtns = rebuyLocked
+    ? `<div class="config-readout" style="margin:0">${cfg.maxRebuys}回（ゲーム中は変更不可）</div>`
+    : [0,1,2,3,5].map(n =>
+        `<button data-cfg="rebuy" data-v="${n}" class="${n===cfg.maxRebuys?"sel":""}">${n}回</button>`).join("");
+  el.innerHTML = `<div class="host-config">
+    <div class="hc-title">ホスト設定</div>
+    <div class="hc-row"><div class="hc-label">ブラインド</div><div class="hc-options">${blindBtns}</div></div>
+    <div class="hc-row"><div class="hc-label">リバイ上限${rebuyLocked?"（確定）":"（開始前のみ設定可）"}</div><div class="hc-options">${rebuyBtns}</div></div>
+    <div class="hc-note" style="margin-bottom:10px">ブラインドは次のハンドから反映</div>
+    <div class="hc-row">
+      <div class="hc-label">スタンドアップ（椅子取り）— 敗者が着席者に各額を支払い</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="su-amt-input" type="number" min="100" step="100" value="1000"
+          style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.18);border-radius:8px;padding:9px 10px;color:#fff;font-size:15px;outline:none;">
+        <button class="su-start" style="flex-shrink:0;padding:9px 14px;font-size:13px;font-weight:800;border:none;border-radius:8px;background:linear-gradient(180deg,#ff8a3a,#e0561e);color:#fff;cursor:pointer;letter-spacing:1px;">開始</button>
+      </div>
+    </div>
+  </div>`;
+  el.querySelectorAll("[data-cfg]").forEach(b => {
+    b.addEventListener("click", () => {
+      const v = parseInt(b.dataset.v, 10);
+      if (b.dataset.cfg === "blind") send({ type:"config", blindLevel: v });
+      else send({ type:"config", maxRebuys: v });
+    });
+  });
+  const startSU = el.querySelector(".su-start"), amtInput = el.querySelector(".su-amt-input");
+  if (startSU){
+    startSU.addEventListener("click", () => {
+      const amt = Math.max(100, Math.round((parseInt(amtInput.value,10)||0)/100)*100);
+      if ((serverState.players||[]).filter(p=>!p.eliminated && p.stack>0).length < 2){ showToast("2人以上必要です"); return; }
+      send({ type:"standup_start", amount: amt });
+    });
+  }
+}
+
+// ===== Board rendering =====
+function boardsHTML(boards, vanished, winnerBoards, highlightSets){
+  return boards.map((b, bi) => {
+    const isVanished = (vanished||[]).includes(bi);
+    const isWinner = (winnerBoards||[]).includes(bi);
+    const cells = [];
+    for (let i=0;i<5;i++){
+      const c = b[i];
+      const hl = highlightSets && highlightSets[bi] && c && highlightSets[bi].has(cardKey(c));
+      cells.push(`<div class="community-card ${hl?"in-best":""}">${cardHTML(c)}</div>`);
+    }
+    return `<div class="board-row ${isVanished?"vanished":""} ${isWinner?"winner-board":""}">
+      <div class="board-tag">${["A","B","C"][bi]}</div>
+      <div class="board-cards">${cells.join("")}</div>
+    </div>`;
+  }).join("");
+}
+
+// ===== Table (betting) =====
+function renderTable(){
+  showScreen("table");
+  const st = serverState;
+  $("handNoLabel").textContent = st.standup ? `🪑 SU` : `HAND #${st.handNo}`;
+  $("streetPill").textContent = (st.street||"").toUpperCase();
+  $("blindsLabel").textContent = `${st.config.sb}/${st.config.bb}`;
+  $("tableSUBanner").innerHTML = standupBannerHTML(st.standup);
+  $("potAmt").textContent = fmt(st.pot);
+  $("boards").innerHTML = boardsHTML(st.boards, st.vanished, [], null);
+
+  // Seats
+  const maxRebuys = st.config.maxRebuys;
+  $("seats").innerHTML = st.players.map(p => {
+    const acting = st.actorId === p.id;
+    const isBtn = st.buttonId === p.id;
+    const muted = !p.inHand; // not dealt into this hand (eliminated or just joined)
+    let tag = "";
+    if (p.eliminated) tag = `<span class="stag fold">脱落</span>`;
+    else if (p.folded) tag = `<span class="stag fold">FOLD</span>`;
+    else if (p.allIn) tag = `<span class="stag allin">ALL-IN</span>`;
+    else if (p.streetBet > 0) tag = `<span class="stag bet">${fmt(p.streetBet)}</span>`;
+    else if (muted) tag = `<span class="stag fold">待機</span>`;
+    const rebuyDot = (p.rebuysUsed > 0 && !p.eliminated)
+      ? `<span class="schips" style="margin-left:6px">R${p.rebuysUsed}/${maxRebuys}</span>` : "";
+    return `<div class="seat ${p.isYou?"you":""} ${acting?"acting":""} ${(p.folded||muted)?"folded":""}">
+      <div class="dealer-btn ${isBtn?"":"hide"}">D</div>
+      <div class="sname">${escapeHtml(p.name)}${p.isYou?'<span class="you-tag"> (あなた)</span>':""}${rebuyDot}</div>
+      ${tag}
+      <div class="sstack">${fmt(p.stack)}<span class="schips"> chip</span></div>
+    </div>`;
+  }).join("");
+
+  // Hole cards
+  const me = st.players.find(p => p.isYou);
+  const hole = (me && me.hole) ? me.hole : [];
+  $("holeCards").innerHTML = hole.length
+    ? hole.map(c => `<div class="hcard">${cardHTML(c)}</div>`).join("")
+    : `<div class="waiting-note">このハンドは観戦中（チップ補充待ち）</div>`;
+
+  renderActionArea();
+}
+
+function renderActionArea(){
+  const st = serverState;
+  const area = $("actionArea");
+  const myTurn = st.actorId === st.you && st.options;
+  if (!myTurn){
+    cleanupTimers();
+    const actor = st.players.find(p => p.id === st.actorId);
+    area.innerHTML = `<div class="action-bar"><div class="waiting-note">${
+      actor ? escapeHtml(actor.name)+" のアクションを待っています…" : "次のストリートへ…"
+    }</div></div>`;
+    return;
+  }
+
+  const o = st.options;
+  const toCall = o.toCall;
+  const canRaise = o.canRaise;
+  const snap100 = (n) => Math.max(o.minRaiseTo, Math.min(o.maxRaiseTo, Math.round(n / 100) * 100));
+  // init / clamp slider value to the valid 100-chip range
+  if (raiseValue < o.minRaiseTo || raiseValue > o.maxRaiseTo) raiseValue = o.minRaiseTo;
+  raiseValue = snap100(raiseValue);
+
+  let raiseHtml = "";
+  if (canRaise){
+    const half = snap100((o.minRaiseTo + o.maxRaiseTo) / 2);
+    // When pot-limit max equals an all-in shove, label the top preset ALL-IN.
+    const shove = (o.currentBet - o.toCall) + o.stack;
+    const topLabel = o.maxRaiseTo >= shove ? "ALL-IN" : "POT";
+    raiseHtml = `
+      <div class="raise-controls">
+        <div class="raise-amt" id="raiseAmt">${fmt(raiseValue)}</div>
+        <input type="range" id="raiseSlider" min="${o.minRaiseTo}" max="${o.maxRaiseTo}" step="100" value="${raiseValue}">
+        <div class="raise-presets">
+          <button data-to="${o.minRaiseTo}">MIN</button>
+          <button data-to="${half}">½</button>
+          <button data-to="${o.maxRaiseTo}">${topLabel}</button>
+        </div>
+      </div>`;
+  }
+
+  const callLabel = toCall > 0 ? `CALL ${fmt(toCall)}` : "CHECK";
+  const callClass = toCall > 0 ? "act-call" : "act-check";
+  const callAction = toCall > 0 ? "call" : "check";
+
+  area.innerHTML = `
+    <div class="action-bar">
+      <div class="action-clock" id="actionClock"><b id="clockNum">30</b> 秒</div>
+      ${raiseHtml}
+      <div class="action-buttons">
+        <button class="act-fold" data-act="fold">FOLD</button>
+        <button class="${callClass}" data-act="${callAction}">${callLabel}</button>
+        ${canRaise ? `<button class="act-raise" data-act="raise">${o.currentBet>0?"RAISE":"BET"}</button>` : ""}
+      </div>
+    </div>`;
+
+  // Wire slider
+  if (canRaise){
+    const slider = $("raiseSlider"), amt = $("raiseAmt");
+    slider.addEventListener("input", () => { raiseValue = snap100(parseInt(slider.value,10)); amt.textContent = fmt(raiseValue); });
+    document.querySelectorAll(".raise-presets button").forEach(b => {
+      b.addEventListener("click", () => {
+        const to = snap100(parseInt(b.dataset.to,10));
+        raiseValue = to; slider.value = to; amt.textContent = fmt(to);
+      });
+    });
+  }
+
+  area.querySelectorAll(".action-buttons button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const act = btn.dataset.act;
+      if (act === "raise"){ send({ type:"action", action:"raise", amount: raiseValue }); }
+      else { send({ type:"action", action: act, amount: 0 }); }
+      // optimistic lock
+      area.innerHTML = `<div class="action-bar"><div class="waiting-note">送信しました…</div></div>`;
+      cleanupTimers();
+    });
+  });
+
+  // clock
+  const clock = $("actionClock"), num = $("clockNum");
+  const update = () => {
+    if (!st.phaseEndAt){ num.textContent = "—"; return; }
+    const remain = Math.max(0, Math.ceil((st.phaseEndAt - Date.now())/1000));
+    num.textContent = remain;
+    clock.classList.toggle("urgent", remain <= 8);
+  };
+  cleanupTimers(); update(); timerInterval = setInterval(update, 250);
+}
+
+// ===== Showdown =====
+function renderShowdown(){
+  showScreen("showdown"); cleanupTimers();
+  const st = serverState, r = st.result || {};
+  const players = st.players;
+  const isHost = st.you === st.hostId;
+  $("nextBtn").style.display = isHost ? "" : "none";
+
+  // Stand-up overlay: banner with sat/standing, the loser + bounty when done,
+  // and a context-appropriate NEXT label.
+  const su = r.standup;
+  const nameOf = id => { const p = players.find(x => x.id === id); return p ? p.name : "?"; };
+  if (su){
+    const lastSatNames = (su.lastSat||[]).map(id => escapeHtml(nameOf(id))).join(" & ");
+    let html = standupBannerHTML(su);
+    if (su.lastSat && su.lastSat.length){
+      html += `<div class="su-banner" style="margin-top:6px"><div class="su-banner-top">このハンドの勝者 <b>${lastSatNames}</b> は着席（安全）</div></div>`;
+    }
+    if (su.done){
+      const loserName = su.loser ? escapeHtml(nameOf(su.loser)) : "—";
+      // Whole-stand-up net swing per participant (all hands + bounty).
+      const netRows = (su.participants||[])
+        .map(id => ({ id, net: (su.totalNets||{})[id] || 0 }))
+        .sort((a,b) => b.net - a.net)
+        .map(x => {
+          const cls = x.net > 0 ? "plus" : x.net < 0 ? "minus" : "";
+          return `<div class="su-net-row"><span>${escapeHtml(nameOf(x.id))}${x.id===su.loser?" 🪑":""}</span><span class="sd-net ${cls}">${x.net>0?"+":""}${fmt(x.net)}</span></div>`;
+        }).join("");
+      html += su.loser
+        ? `<div class="su-result-banner">
+             <div class="lr-label">最後まで座れなかった人＝敗者</div>
+             <div class="lr-name">${loserName}</div>
+             <div class="lr-pay">着席者へ各 ${fmt(su.amount)} 支払い（計 ${fmt(su.loserPays)}）</div>
+             <div class="su-net-list"><div class="lr-label" style="margin-bottom:4px">スタンドアップ通算増減</div>${netRows}</div>
+           </div>`
+        : `<div class="su-result-banner"><div class="lr-name">引き分け</div></div>`;
+    }
+    $("sdSUBanner").innerHTML = html;
+    $("nextBtn").textContent = su.done ? "ゲームを続ける" : "次のラウンド";
+  } else {
+    $("sdSUBanner").innerHTML = "";
+    $("nextBtn").textContent = "NEXT HAND";
+  }
+
+  // Winning highlight sets per board (winner's best cards), for board card glow.
+  const highlightSets = {};
+  const winnerBoards = (r.survivors||[]);
+  (r.boardWinners||[]).forEach(bw => {
+    const w0 = bw.winners[0];
+    if (w0 && bw.hands[w0] && bw.hands[w0].cards){
+      highlightSets[bw.board] = new Set(bw.hands[w0].cards.map(cardKey));
+    }
+  });
+  $("sdBoards").innerHTML = boardsHTML(r.boards||[[],[],[]], r.vanished, winnerBoards, highlightSets);
+
+  // Win line
+  let winLine;
+  if (r.uncontested){
+    const w = players.find(p => (r.contenders||[]).includes(p.id));
+    winLine = w ? `${escapeHtml(w.name)} が全ボード獲得（全員フォールド）` : "—";
+  } else {
+    const parts = (r.boardWinners||[]).map(bw => {
+      const names = bw.winners.map(id => players.find(p=>p.id===id)?.name).filter(Boolean).map(escapeHtml).join(" & ");
+      return `${["A","B","C"][bw.board]}: ${names||"-"}`;
+    });
+    winLine = parts.join("　/　") || "—";
+  }
+  $("winLine").innerHTML = winLine;
+  renderHostConfig("hostConfigShowdown");
+
+  const busted = new Set(r.busted || []);
+  const eliminated = new Set(r.eliminated || []);
+
+  // Build per-player best-card highlight across surviving boards
+  const bestCardSet = {};
+  (r.boardWinners||[]).forEach(bw => {
+    Object.entries(bw.hands||{}).forEach(([id,h]) => {
+      if (!h || !h.cards) return;
+      if (!bestCardSet[id]) bestCardSet[id] = new Set();
+      // only highlight a player's own hole cards used; board cards already glow on the board
+      h.cards.forEach(c => bestCardSet[id].add(cardKey(c)));
+    });
+  });
+
+  // Player list — sorted: winners/contenders first, then folded
+  const winnerIds = new Set();
+  (r.boardWinners||[]).forEach(bw => bw.winners.forEach(id => winnerIds.add(id)));
+  if (r.uncontested && r.contenders) r.contenders.forEach(id => winnerIds.add(id));
+
+  const rows = players.filter(p => (r.nets||{})[p.id] !== undefined).map(p => {
+    const net = (r.nets||{})[p.id] || 0;
+    const isContender = (r.contenders||[]).includes(p.id);
+    const isWinner = winnerIds.has(p.id);
+    const isFold = !isContender;
+    let cls = "sd-row";
+    if (isWinner) cls += " winner";
+    if (isFold) cls += " folded";
+
+    const hole = p.hole; // server reveals contenders' holes
+    let cardsHtml;
+    if (hole && hole.length){
+      const hlSet = bestCardSet[p.id];
+      cardsHtml = `<div class="sd-cards">` + hole.map(c => {
+        const inBest = hlSet && hlSet.has(cardKey(c));
+        return `<div class="pcard ${inBest?"in-best":""}">${cardHTML(c)}</div>`;
+      }).join("") + `</div>`;
+    } else {
+      cardsHtml = `<div class="sd-hidden">フォールド</div>`;
+    }
+
+    // Hand names per surviving board
+    let handNames = "";
+    if (isContender && !r.uncontested){
+      handNames = (r.boardWinners||[]).map(bw => {
+        const h = bw.hands?.[p.id];
+        return h ? `${["A","B","C"][bw.board]} ${h.name}` : null;
+      }).filter(Boolean).join("　/　");
+    }
+
+    const netCls = net > 0 ? "plus" : net < 0 ? "minus" : "";
+    const netStr = (net>0?"+":"") + fmt(net);
+    let statusTag = "";
+    if (eliminated.has(p.id)) statusTag = `<div class="sd-drink" style="background:linear-gradient(180deg,#555,#222)">脱落</div>`;
+    else if (busted.has(p.id)) statusTag = `<div class="sd-drink" style="background:linear-gradient(180deg,#ff8a3a,#e0561e)">リバイ</div>`;
+    return `<div class="${cls}">
+      <div class="sd-head">
+        <div class="sd-name">${escapeHtml(p.name)}${p.isYou?'<span class="you-tag"> (あなた)</span>':""}</div>
+        ${statusTag}
+        <div class="sd-net ${netCls}">${netStr}</div>
+      </div>
+      ${handNames?`<div class="sd-hidden" style="margin-bottom:5px">${handNames}</div>`:""}
+      ${cardsHtml}
+    </div>`;
+  }).join("");
+  $("sdList").innerHTML = rows;
+}
+
+function cleanupTimers(){ if (timerInterval){ clearInterval(timerInterval); timerInterval=null; } }
+
+// ===== Events =====
+$("enterBtn").addEventListener("click", () => {
+  const name = $("nameInput").value.trim();
+  let room = $("roomInput").value.trim().toUpperCase();
+  if (!name){ showToast("名前を入力してください"); return; }
+  if (!room){ room = randomRoomCode(); }
+  else if (!/^[A-Z0-9]{4,6}$/.test(room)){ showToast("ルームコードは4〜6文字の英数字"); return; }
+  requestWakeLock();
+  connect(name, room);
+});
+$("startBtn").addEventListener("click", () => send({ type:"start" }));
+$("nextBtn").addEventListener("click", () => send({ type:"next" }));
+$("leaveBtn").addEventListener("click", disconnect);
+$("leaveBtn2").addEventListener("click", disconnect);
+$("rulesBtn").addEventListener("click", () => $("rulesOverlay").classList.add("show"));
+$("rulesOverlay").addEventListener("click", (e) => {
+  if (e.target.closest(".rules-card") && !e.target.classList.contains("close-hint")) return;
+  $("rulesOverlay").classList.remove("show");
+});
+document.addEventListener("gesturestart", e => e.preventDefault());
+</script>
+<!-- cf-web-analytics -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"c586ede3c6be42a5889b616b0b0f08df"}'></script>
+</body>
+</html>
