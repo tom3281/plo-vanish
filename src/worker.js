@@ -416,9 +416,10 @@ export class GameRoom {
 
   startHand() {
     const su = this.su && this.su.active ? this.su : null;
-    // In a stand-up, only the players still STANDING are dealt in.
+    // In a stand-up, EVERY participant is dealt into every hand (even those who
+    // already sat / are safe) — only the "standing" set decides the loser.
     const eligible = su
-      ? su.standing.filter(id => {
+      ? su.participants.filter(id => {
           const p = this.players.get(id);
           return p && p.stack > 0 && !p.eliminated;
         })
@@ -427,8 +428,14 @@ export class GameRoom {
       if (su) {
         // Can't deal another chair-game hand — settle with whoever's left.
         su.done = true;
-        su.loser = eligible[0] || su.standing[0] || null;
+        su.loser = su.standing[0] || eligible[0] || null;
         this.computeStandupBounty();
+        this.applyStandupBounty();
+        su.totalNets = {};
+        for (const id of su.participants) {
+          const p = this.players.get(id);
+          if (p) su.totalNets[id] = p.stack - su.startStacks[id];
+        }
         this.finishStandup();
         return;
       }
@@ -841,7 +848,7 @@ export class GameRoom {
     }
 
     // Stand-up: sit the hand's winners and settle if one player remains.
-    if (this.su && this.su.active) this.standupAfterHand(winnings);
+    if (this.su && this.su.active) this.standupAfterHand(winnings, nets);
 
     this.result = {
       boards: this.boards,
@@ -990,14 +997,27 @@ export class GameRoom {
 
   // Called from endHand once a stand-up hand resolves: sit the winners and,
   // if only one player is left standing, finish the chair game (apply bounty).
-  standupAfterHand(winnings) {
+  standupAfterHand(winnings, nets) {
     const su = this.su;
-    const wonThisHand = this.handPlayers.filter(id => (winnings[id] || 0) > 0);
-    su.lastSat = wonThisHand.slice();
-    for (const id of wonThisHand) if (!su.sat.includes(id)) su.sat.push(id);
+    // Everyone is dealt, but only STANDING players who won chips this hand sit
+    // down (safe). Already-safe players who win again don't change the pool.
+    let newlySat = su.standing.filter(id => (winnings[id] || 0) > 0);
+    // Guaranteed progress: if no standing player won a pot (it all went to
+    // already-safe players), the standing player(s) who did best this hand sit
+    // anyway, so the chair game always converges.
+    if (newlySat.length === 0 && su.standing.length > 1) {
+      let bestNet = -Infinity;
+      for (const id of su.standing) bestNet = Math.max(bestNet, (nets?.[id] ?? 0));
+      newlySat = su.standing.filter(id => (nets?.[id] ?? 0) === bestNet);
+      // Don't let the whole pool sit at once (that would leave no loser).
+      if (newlySat.length >= su.standing.length) newlySat = newlySat.slice(0, su.standing.length - 1);
+    }
+    su.lastSat = newlySat.slice();
+    for (const id of newlySat) su.sat.push(id);
+    const newlySatSet = new Set(newlySat);
     su.standing = su.standing.filter(id => {
       const p = this.players.get(id);
-      return p && !p.eliminated && !wonThisHand.includes(id);
+      return p && !p.eliminated && !newlySatSet.has(id);
     });
     if (su.standing.length <= 1) {
       su.done = true;

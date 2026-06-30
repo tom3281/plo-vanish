@@ -694,6 +694,12 @@ function renderHostConfig(containerId){
     startSU.addEventListener("click", () => {
       const amt = Math.max(100, Math.round((parseInt(amtInput.value,10)||0)/100)*100);
       if ((serverState.players||[]).filter(p=>!p.eliminated && p.stack>0).length < 2){ showToast("2人以上必要です"); return; }
+      // Immediate visual feedback so the host knows the press registered.
+      startSU.disabled = true;
+      startSU.textContent = "開始中…";
+      startSU.style.opacity = "0.7";
+      if (amtInput) amtInput.disabled = true;
+      showToast(`スタンドアップ開始（各 ${fmt(amt)}）`);
       send({ type:"standup_start", amount: amt });
     });
   }
@@ -730,6 +736,7 @@ function renderTable(){
 
   // Seats
   const maxRebuys = st.config.maxRebuys;
+  const safeSet = st.standup ? new Set(st.standup.sat || []) : null;
   $("seats").innerHTML = st.players.map(p => {
     const acting = st.actorId === p.id;
     const isBtn = st.buttonId === p.id;
@@ -740,12 +747,18 @@ function renderTable(){
     else if (p.allIn) tag = `<span class="stag allin">ALL-IN</span>`;
     else if (p.streetBet > 0) tag = `<span class="stag bet">${fmt(p.streetBet)}</span>`;
     else if (muted) tag = `<span class="stag fold">待機</span>`;
+    // Stand-up safety marker (everyone keeps playing; this shows who's secured).
+    const suChip = safeSet
+      ? (safeSet.has(p.id)
+          ? `<span class="stag" style="background:rgba(80,255,150,0.2);color:#9be8af">🪑安全</span>`
+          : (!p.eliminated ? `<span class="stag" style="background:rgba(255,138,58,0.22);color:#ffb37a">残</span>` : ""))
+      : "";
     const rebuyDot = (p.rebuysUsed > 0 && !p.eliminated)
       ? `<span class="schips" style="margin-left:6px">R${p.rebuysUsed}/${maxRebuys}</span>` : "";
     return `<div class="seat ${p.isYou?"you":""} ${acting?"acting":""} ${(p.folded||muted)?"folded":""}">
       <div class="dealer-btn ${isBtn?"":"hide"}">D</div>
       <div class="sname">${escapeHtml(p.name)}${p.isYou?'<span class="you-tag"> (あなた)</span>':""}${rebuyDot}</div>
-      ${tag}
+      ${suChip}${tag}
       <div class="sstack">${fmt(p.stack)}<span class="schips"> chip</span></div>
     </div>`;
   }).join("");
